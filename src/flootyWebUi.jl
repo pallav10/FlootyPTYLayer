@@ -31,7 +31,7 @@
 # TerminalEntry, so the handler layer runs without any window at all
 # (see test/webUiSmoke.jl).
 using UUIDs
-using JSON
+using JSON3
 import Webviews
 import HTTP
 
@@ -2454,13 +2454,23 @@ end
 
 # ---- binding payload parsing ---------------------------------------------------
 #
-# Every binding receives ONE JSON object string. Parsing it once with JSON.jl is
+# Every binding receives ONE JSON object string. Parsing it once with JSON3.jl is
 # both cheaper and correct, unlike the hand-rolled scanners this replaces: those
 # could not tell `"force": false` from a `false` nested anywhere later in the
 # payload, and lost a field whenever an escape or stray space broke the flat
 # `"key":` pattern.
 
 const EMPTY_PAYLOAD = NamedTuple()
+
+# JSON3 decodes escaped strings lazily; visit every value before accepting a payload.
+function validateJsonPayload(obj::Union{JSON3.Object, JSON3.Array})
+    for value in values(obj)
+        if value isa Union{JSON3.Object, JSON3.Array}
+            validateJsonPayload(value)
+        end
+    end
+    return nothing
+end
 
 """
 Binding payload: `args` — the binding's argument tuple, or a bare JSON string —
@@ -2473,11 +2483,14 @@ function jsonArgs(args)
     s = String(raw)
     isempty(s) && return EMPTY_PAYLOAD
     obj = try
-        JSON.parse(s)
+        parsed = JSON3.read(s)
+        parsed isa JSON3.Object || return EMPTY_PAYLOAD
+        validateJsonPayload(parsed)
+        parsed
     catch
         return EMPTY_PAYLOAD
     end
-    return obj isa JSON.Object ? obj : EMPTY_PAYLOAD
+    return obj isa JSON3.Object ? obj : EMPTY_PAYLOAD
 end
 
 "String field `key` of a parsed payload (`default` when absent or not a string)."
@@ -3053,6 +3066,23 @@ JSON-string result ({success, ...}) — mirroring the old webui.call contract so
 the frontend diff stays minimal. Handlers delegate to the plain functions above.
 """
 function registerTerminalBindings!(wv)
+    bindSlashCommands!(wv)
+    Webviews.bind(wv, "flootyThemeGet") do _
+        try
+            JSON3.write(merge(Dict("success" => true), ThemeManager.themeState()))
+        catch err
+            errorJson(sprint(showerror, err))
+        end
+    end
+    Webviews.bind(wv, "flootyThemeSet") do args
+        try
+            name = jsonStr(jsonArgs(args), :name)
+            JSON3.write(merge(Dict("success" => true), ThemeManager.selectTheme!(name)))
+        catch err
+            errorJson(sprint(showerror, err))
+        end
+    end
+
     Webviews.bind(wv, "terminal_create") do args
         resp = try
             payload = jsonArgs(args)
@@ -3224,7 +3254,7 @@ function registerTerminalBindings!(wv)
     Webviews.bind(wv, "flootyGpuReport") do args
         payload = jsonArgs(args)
         GPU_RENDERER_REPORT[] = payload
-        @debug string("[ui-gpu] ", JSON.json(payload))
+        @debug string("[ui-gpu] ", JSON3.write(payload))
         return jsonOk()
     end
 
@@ -3279,6 +3309,7 @@ function registerTerminalBindings!(wv)
             sid = jsonStr(payload, :session_id)
             kind = jsonStr(payload, :kind)
             text = jsonStr(payload, :text)
+            isSlashCommandDraft(text) && return jsonOk()
             idle = Float64(jsonInt(payload, :idle_ms, 0)) / 1000.0
             handler = CHAT_INTERACTION_HANDLER[]
             if isempty(sid) || isempty(kind)
@@ -3319,6 +3350,8 @@ function registerTerminalBindings!(wv)
         payload = jsonArgs(args)
         text = jsonStr(payload, :text)
         isempty(strip(text)) && return errorJson("empty assist prompt")
+        command = dispatchAssistSlash(payload)
+        get(command, :handled, false) && return JSON3.write(merge((success = true,), command))
         # The focused pane's SESSION (the page names it); without a name the
         # ACTIVE session is used (legacy).
         sess = ownershipSession(jsonStr(payload, :terminal_session_id))
@@ -3624,7 +3657,7 @@ function registerTerminalBindings!(wv)
             sid = jsonStr(payload, :session_id)
             isempty(sid) && return errorJson("missing session_id")
             closed = Base.invokelatest(handler, sid)
-            JSON.json(Dict("success" => true, "closed" => closed))
+            JSON3.write(Dict("success" => true, "closed" => closed))
         catch err
             @error "flootyWebUi: flootyCloseChat failed" exception = err
             errorJson(sprint(showerror, err))
@@ -3676,8 +3709,7 @@ function registerTerminalBindings!(wv)
                 errorJson("no agent model controller installed")
             else
                 state = Base.invokelatest(selector, String(name), String(tid))
-                jsonAgentModelState((current = String(state.current),
-                                     available = String[String(x) for x in state.available]))
+                jsonAgentModelState(state)
             end
         catch err
             @error "flootyWebUi: flootySetModel failed" exception = err
@@ -3796,6 +3828,12 @@ function startAssetServer!()
                            CHANNEL_PORT[], " };\n")
             return HTTP.Response(200, ["Content-Type" => "application/javascript"];
                                  body = body)
+        end
+        if path == "/theme.js"
+            body = "window.FLOOTY_THEME_STATE = " *
+                   JSON3.write(ThemeManager.themeState()) * ";\n"
+            return HTTP.Response(200, ["Content-Type" => "application/javascript",
+                                       "Cache-Control" => "no-store"]; body = body)
         end
         file = normpath(assetsDir, lstrip(path, '/'))
         notFound = HTTP.Response(404, ["Content-Type" => "text/plain"];

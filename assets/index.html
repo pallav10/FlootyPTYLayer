@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <title>Flooty Terminal</title>
+    <script src="theme.js"></script>
+    <script src="js/theme-manager.js"></script>
+    <link rel="stylesheet" href="slash-commands.css" />
+    <script src="js/slash-commands.js"></script>
     <!-- Bridge note: terminal_create/input/resize/kill plus the flooty-prefixed
          flootyCloseWindow/flootyMinimizeWindow are global async functions injected
          by Webviews.jl's bind() (RPC shim). Each takes ONE JSON string argument
@@ -22,7 +26,6 @@
     <!-- Assist editor: LOCAL CodeMirror 5 bundles (same proven copies
          FlootyOldPTY/libs uses — no CDN dependency for the input surface). -->
     <link rel="stylesheet" href="libs/codemirror.min.css" />
-    <link rel="stylesheet" href="libs/dracula.min.css" />
     <script src="libs/codemirror.min.js"></script>
     <!-- markdown mode needs xml as its dependency -->
     <script src="libs/xml.min.js"></script>
@@ -33,83 +36,20 @@
     <script src="runtime.js"></script>
     <script src="js/terminal-core.js"></script>
     <style>
-        /* Terminal palette. The chat rail is the SAME surface as the pane — same
-           background, same accents — so the two read as one terminal instead of a
-           web panel bolted beside it. Values mirror xtermTheme() in this file.
-           color-scheme:dark is what makes WebKit paint DARK overlay scrollbars and
-           native controls (::-webkit-scrollbar only styles classic scrollbars). */
-        :root {
-            color-scheme: dark;
-            --term-bg: #1e1e1e;
-            --term-fg: #d4d4d4;
-            --term-blue: #2472c8;
-            --term-bright-blue: #3b8eea;
-            --term-magenta: #bc3fbc;
-            --term-bright-magenta: #d670d6;
-            --term-yellow: #e5e510;
-            --term-bright-yellow: #f5f543;
-            --term-bright-green: #23d18b;
-            --term-bright-red: #f14c4c;
-        }
-
-        /* FlootyOldPTY glassmorphic theme ---------------------------------- */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        :root {
-            /* Wallpaper knobs (see #appBackground): the photo is dark by itself,
-               so these two numbers ARE the window's brightness. */
-            --backdrop-gain: 1.7;
-            --backdrop-scrim: 0.15;
-        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #14151a;
-            color: #e8e8e8;
+            background: var(--term-bg);
+            color: var(--term-fg);
             height: 100vh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
             position: relative;
-        }
-
-        /* Wallpaper over the photo — the image must READ, not sit behind a slab.
-           background.jpg is itself dark (mean luminance ~15/255, max ~63), so a
-           flat scrim plus no gain leaves the whole window at ~10/255: that is the
-           "background went dark again" look. The scrim is therefore light (0.15)
-           and the photo is gained up (brightness) — both live in ONE layer so
-           WebKit has a single full-screen backdrop to paint (no backdrop-filter:
-           a separate blur layer repaints on its own schedule, the "drag-resize
-           before it looks right" bug). */
-        #appBackground {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            /* TUNABLE: --backdrop-gain lifts the (intrinsically dark) photo,
-               --backdrop-scrim is the black veil on top. Measured window mean
-               luminance: 0.42/1.0 = 10/255 (the "dark again" look),
-               0.15/1.7 = ~42/255. Change ONE number to taste. */
-            background-image: linear-gradient(rgba(0, 0, 0, var(--backdrop-scrim, 0.15)),
-                                              rgba(0, 0, 0, var(--backdrop-scrim, 0.15))),
-                              url('background.jpg');
-            background-size: cover, cover;
-            background-position: center, center;
-            filter: brightness(var(--backdrop-gain, 1.7)) saturate(1.15);
-            z-index: -1;
-            pointer-events: none;
-        }
-
-        /* Film-grain noise overlay (SVG turbulence filter) */
-        #grain {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            filter: url(#noise);
-            opacity: 0.05;
-            pointer-events: none;
-            z-index: 99998;
         }
 
         /* Agent feedback popups --------------------------------------------- */
@@ -130,9 +70,9 @@
             align-items: flex-start;
             gap: 10px;
             padding: 10px 12px;
-            background: rgba(20, 21, 26, 0.92);
-            border: 1px solid rgba(255, 255, 255, 0.14);
-            color: rgba(255, 255, 255, 0.92);
+            background: var(--term-bg);
+            border: 1px solid rgba(var(--term-fg-rgb), 0.14);
+            color: var(--term-fg);
             font-size: 12px;
             line-height: 1.45;
             transform: translateX(calc(100% + 30px));
@@ -151,21 +91,21 @@
             content: '';
             flex: 0 0 2px;
             align-self: stretch;
-            background: var(--accent, #4fc3f7);
+            background: var(--accent, var(--ui-cyan));
             margin-right: 2px;
         }
-        .agent-popup.kind-info { --accent: #4fc3f7; }
-        .agent-popup.kind-warn { --accent: #ffb74d; }
-        .agent-popup.kind-interrupt { --accent: #ef5350; }
+        .agent-popup.kind-info { --accent: var(--ui-cyan); }
+        .agent-popup.kind-warn { --accent: var(--ui-yellow); }
+        .agent-popup.kind-interrupt { --accent: var(--ui-red); }
         .agent-popup-body { flex: 1; min-width: 0; }
         .agent-popup-title {
             font-weight: 600;
             font-size: 12px;
             margin-bottom: 3px;
-            color: var(--accent, #4fc3f7);
+            color: var(--accent, var(--ui-cyan));
         }
         .agent-popup-text {
-            color: rgba(255, 255, 255, 0.85);
+            color: var(--term-fg);
             word-wrap: break-word;
             white-space: pre-wrap;
         }
@@ -177,21 +117,21 @@
             border: none;
             cursor: pointer;
             background: transparent;
-            color: rgba(255, 255, 255, 0.55);
+            color: var(--term-muted);
             font-size: 12px;
             line-height: 1;
             padding: 0;
         }
-        .agent-popup-dismiss:hover { color: #fff; }
+        .agent-popup-dismiss:hover { color: var(--term-fg); }
 
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(var(--term-fg-rgb), 0.2);
             border-radius: 4px;
         }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
-        * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(var(--term-fg-rgb), 0.3); }
+        * { scrollbar-width: thin; scrollbar-color: rgba(var(--term-fg-rgb), 0.2) transparent; }
 
         /* Title bar — flat, separated by a hairline only */
         .titlebar {
@@ -204,13 +144,13 @@
             padding: 0 20px;
             -webkit-app-region: drag;
             user-select: none;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(var(--term-fg-rgb), 0.1);
         }
         .titlebar h1 {
             margin: 0;
             font-size: 1.2em;
             font-weight: 500;
-            color: rgba(255, 255, 255, 0.9);
+            color: var(--term-fg);
         }
         .titlebar-left {
             display: flex;
@@ -225,8 +165,8 @@
             transition: background 0.2s;
             margin-right: 8px;
         }
-        #settingsToggle:hover { background: rgba(255, 255, 255, 0.1); }
-        #settingsToggle svg { width: 18px; height: 18px; fill: none; stroke: rgba(255,255,255,0.8); }
+        #settingsToggle:hover { background: rgba(var(--term-fg-rgb), 0.1); }
+        #settingsToggle svg { width: 18px; height: 18px; fill: none; stroke: rgba(var(--term-fg-rgb), 0.8); }
 
         /* Window controls: plain glyph buttons, no boxes */
         .window-controls {
@@ -239,15 +179,15 @@
             cursor: pointer;
             padding: 2px 4px;
             background: transparent;
-            color: rgba(255, 255, 255, 0.6);
+            color: var(--term-muted);
             font-size: 15px;
             line-height: 1;
         }
         .window-btn:hover {
-            color: #fff;
+            color: var(--term-fg);
         }
-        .btn-close:hover { color: #ef5350; }
-        .btn-minimize:hover { color: #ffb74d; }
+        .btn-close:hover { color: var(--ui-red); }
+        .btn-minimize:hover { color: var(--ui-yellow); }
 
         /* Toolbar — flat action row under a hairline; buttons are plain text */
         .toolbar {
@@ -257,23 +197,23 @@
             gap: 18px;
             align-items: center;
             padding: 8px 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(var(--term-fg-rgb), 0.1);
         }
         .toolbar button,
         .toolbar button.secondary {
             padding: 0;
             background: transparent;
             border: none;
-            color: rgba(255, 255, 255, 0.65);
+            color: var(--term-muted);
             cursor: pointer;
             font-size: 12px;
             font-weight: 500;
         }
         .toolbar button:hover {
-            color: #fff;
+            color: var(--term-fg);
         }
         .toolbar-hint {
-            color: rgba(255, 255, 255, 0.45);
+            color: var(--term-muted);
             font-size: 11px;
         }
 
@@ -315,15 +255,15 @@
             flex-direction: column;
             gap: 4px;
             padding: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(var(--term-fg-rgb), 0.16);
             border-radius: 8px;
-            background: rgba(18, 19, 24, 0.96);
+            background: var(--term-bg);
             box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
             overflow: auto;
         }
         .child-tabs.tree-map-open { display: flex; }
         .child-tabs:empty { display: none; }
-        .root-icon.tree-map-btn { color: rgba(255, 255, 255, 0.45); font-size: 14px; }
+        .root-icon.tree-map-btn { color: var(--term-muted); font-size: 14px; }
         .child-strip {
             display: flex;
             align-items: center;
@@ -338,39 +278,39 @@
             padding: 3px 8px;
             border: 1px solid transparent;
             border-radius: 4px;
-            color: rgba(255, 255, 255, 0.55);
+            color: var(--term-muted);
             font: 11px Menlo, Consolas, monospace;
             cursor: pointer;
             white-space: nowrap;
         }
-        .child-tab:hover { color: rgba(255, 255, 255, 0.9); }
+        .child-tab:hover { color: var(--term-fg); }
         .child-tab.active {
-            color: #fff;
-            background: rgba(177, 140, 255, 0.12);
-            border-color: rgba(177, 140, 255, 0.55);
+            color: var(--term-fg);
+            background: rgba(var(--ui-magenta-rgb), 0.12);
+            border-color: rgba(var(--ui-magenta-rgb), 0.55);
         }
         .child-tab .dot {
             width: 6px; height: 6px; border-radius: 50%;
-            background: var(--term-bright-yellow, #e5e510);
+            background: var(--ui-bright-yellow);
         }
         .child-tab .close-btn {
             opacity: 0.4; font-size: 12px; margin-left: 2px;
         }
-        .child-tab .close-btn:hover { opacity: 1; color: #ef5350; }
+        .child-tab .close-btn:hover { opacity: 1; color: var(--ui-red); }
         .root-icon .close-btn {
             position: absolute;
             top: -3px; right: -3px;
             width: 14px; height: 14px;
             display: flex; align-items: center; justify-content: center;
             border-radius: 50%;
-            background: rgba(20, 21, 26, 0.9);
-            color: rgba(255, 255, 255, 0.7);
+            background: var(--term-bg);
+            color: var(--term-muted);
             font-size: 11px; line-height: 1;
             opacity: 0;
             cursor: pointer;
         }
         .root-icon:hover .close-btn { opacity: 1; }
-        .root-icon .close-btn:hover { color: #ef5350; }
+        .root-icon .close-btn:hover { color: var(--ui-red); }
         /* Compact root icon rail. */
         .root-icon {
             position: relative;
@@ -381,15 +321,15 @@
             justify-content: center;
             border: 1px solid transparent;
             border-radius: 7px;
-            color: rgba(255, 255, 255, 0.5);
+            color: var(--term-muted);
             font: 12px Menlo, Consolas, monospace;
             cursor: pointer;
         }
-        .root-icon:hover { color: rgba(255, 255, 255, 0.9); }
+        .root-icon:hover { color: var(--term-fg); }
         .root-icon.active {
-            color: #fff;
-            background: rgba(177, 140, 255, 0.14);
-            border-color: rgba(177, 140, 255, 0.6);
+            color: var(--term-fg);
+            background: rgba(var(--ui-magenta-rgb), 0.14);
+            border-color: rgba(var(--ui-magenta-rgb), 0.6);
         }
         .root-icon .dot {
             position: absolute;
@@ -398,7 +338,7 @@
             width: 6px;
             height: 6px;
             border-radius: 50%;
-            background: var(--term-bright-yellow, #e5e510);
+            background: var(--ui-bright-yellow);
         }
         .terminal-tabs {
             flex: none;
@@ -413,14 +353,14 @@
             padding: 6px 4px;
             overflow-y: auto;
             overflow-x: hidden;
-            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            border-right: 1px solid rgba(var(--term-fg-rgb), 0.1);
         }
         .terminal-tab {
             padding: 8px 14px;
             background: transparent;
             border: none;
             border-left: 2px solid transparent;
-            color: rgba(255, 255, 255, 0.5);
+            color: var(--term-muted);
             font-size: 12px;
             cursor: pointer;
             display: flex;
@@ -430,8 +370,8 @@
             overflow: hidden;
         }
         .terminal-tab.active {
-            border-left-color: #b18cff;
-            color: #ffffff;
+            border-left-color: var(--ui-magenta);
+            color: var(--term-fg);
         }
         /* Nested session rail: the disclosure sits at the LEFT edge, the
            close/badge at the RIGHT; children indent under their parent. */
@@ -439,12 +379,12 @@
             flex: none;
             width: 12px;
             text-align: center;
-            color: rgba(255, 255, 255, 0.35);
+            color: var(--term-muted);
             font-size: 10px;
         }
         .terminal-tab.child-tab { font-size: 11px; }
-        .terminal-tab.child-tab .tab-chevron { color: rgba(255,255,255,0.25); }
-        .terminal-tab.split-tab { color: rgba(177, 140, 255, 0.8); font-style: italic; }
+        .terminal-tab.child-tab .tab-chevron { color: var(--term-muted); }
+        .terminal-tab.split-tab { color: var(--ui-magenta); font-style: italic; }
         .terminal-tab .tab-name {
             flex: 1;
             min-width: 0;
@@ -468,8 +408,8 @@
             display: flex;
             flex-direction: column;
             gap: 6px;
-            background: rgba(28, 28, 34, 0.98);
-            border: 1px solid rgba(255, 255, 255, 0.16);
+            background: var(--term-bg);
+            border: 1px solid rgba(var(--term-fg-rgb), 0.16);
             border-radius: 8px;
             box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
         }
@@ -477,30 +417,30 @@
             font-size: 11px;
             letter-spacing: 0.06em;
             text-transform: uppercase;
-            color: rgba(255, 255, 255, 0.45);
+            color: var(--term-muted);
             margin-bottom: 4px;
         }
         .session-chooser-card button {
             text-align: left;
             background: transparent;
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(var(--term-fg-rgb), 0.12);
             border-radius: 5px;
-            color: rgba(255, 255, 255, 0.85);
+            color: var(--term-fg);
             font: inherit;
             font-size: 12px;
             padding: 8px 10px;
             cursor: pointer;
         }
         .session-chooser-card button:hover {
-            border-color: rgba(177, 140, 255, 0.7);
-            color: #fff;
+            border-color: rgba(var(--ui-magenta-rgb), 0.7);
+            color: var(--term-fg);
         }
         .session-chooser-card .prompt-input {
             width: 100%;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.16);
+            background: rgba(var(--term-fg-rgb), 0.06);
+            border: 1px solid rgba(var(--term-fg-rgb), 0.16);
             border-radius: 5px;
-            color: #eee;
+            color: var(--term-fg);
             font: 12px Menlo, Consolas, monospace;
             padding: 7px 9px;
         }
@@ -530,7 +470,7 @@
             left: 0;
             top: 0;
             transform: translate(-50%, -50%);
-            border: 1px solid rgba(177, 140, 255, 0.16);
+            border: 1px solid rgba(var(--ui-magenta-rgb), 0.16);
             border-radius: 50%;
             pointer-events: none;
         }
@@ -545,7 +485,7 @@
             font-size: 10px;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-            color: rgba(255, 255, 255, 0.45);
+            color: var(--term-muted);
         }
         .session-wheel-item {
             position: absolute;
@@ -558,19 +498,19 @@
             justify-content: center;
             gap: 1px;
             pointer-events: auto;
-            background: rgba(28, 28, 34, 0.98);
-            border: 1px solid rgba(255, 255, 255, 0.16);
+            background: var(--term-bg);
+            border: 1px solid rgba(var(--term-fg-rgb), 0.16);
             border-radius: 50%;
-            color: rgba(255, 255, 255, 0.85);
+            color: var(--term-fg);
             box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
             cursor: pointer;
             padding: 0;
             font: inherit;
         }
         .session-wheel-item:hover {
-            border-color: rgba(177, 140, 255, 0.85);
-            color: #fff;
-            background: rgba(48, 42, 64, 0.98);
+            border-color: rgba(var(--ui-magenta-rgb), 0.85);
+            color: var(--term-fg);
+            background: rgba(var(--ui-magenta-rgb), 0.12);
         }
         .session-wheel-item svg {
             width: 21px;
@@ -584,15 +524,15 @@
         .session-wheel-item .session-label {
             font-size: 8px;
             letter-spacing: 0.04em;
-            color: rgba(255, 255, 255, 0.55);
+            color: var(--term-muted);
             line-height: 1;
         }
         .session-wheel-item[data-session-kind="cancel"]:hover {
-            border-color: rgba(239, 83, 80, 0.8);
-            color: #ef5350;
+            border-color: rgba(var(--ui-red-rgb), 0.8);
+            color: var(--ui-red);
         }
         .terminal-tab:hover:not(.active) {
-            color: rgba(255, 255, 255, 0.85);
+            color: var(--term-fg);
         }
         /* Session close: always-visible dim glyph, red on hover. Pinned to
            the row's far edge (margin-left auto) so long names truncate
@@ -608,7 +548,7 @@
         .terminal-tab:hover .close-btn { opacity: 0.75; }
         .terminal-tab .close-btn:hover {
             opacity: 1;
-            color: #ef5350;
+            color: var(--ui-red);
         }
         /* Unread agent-feedback count on background tabs: per-session popups
            badge THEIR OWN tab instead of splashing over the pane you are
@@ -620,15 +560,14 @@
             min-width: 15px;
             height: 15px;
             padding: 0 4px;
-            background: rgba(177, 140, 255, 0.85);
-            color: #fff;
+            background: rgba(var(--ui-magenta-rgb), 0.12);
+            color: var(--term-fg);
             font-size: 10px;
             font-weight: 700;
             line-height: 1;
         }
 
-        /* Terminal area — the pane IS the terminal: no padding, no panel
-           chrome, fully transparent xterm over the backdrop. */
+        /* Terminal area — the pane is the solid themed terminal surface. */
         .terminal-container {
             position: relative;
             z-index: 10;
@@ -665,7 +604,7 @@
         .terminal-container.split .terminal-panel.active {
             grid-column: 1;
             grid-row: 1 / span 2;
-            border-right: 1px solid rgba(255, 255, 255, 0.12);
+            border-right: 1px solid rgba(var(--term-fg-rgb), 0.12);
         }
         .terminal-container.split .terminal-panel.split-child {
             grid-column: 2;
@@ -673,17 +612,16 @@
             border-top: none;
         }
         .terminal-container.split .terminal-panel.split-child.split-child-second {
-            border-top: 1px solid rgba(255, 255, 255, 0.12);
+            border-top: 1px solid rgba(var(--term-fg-rgb), 0.12);
         }
         /* The child's tab is marked so it is obvious which tab IS the split. */
-        .terminal-tab.split-child-tab { color: rgba(177, 140, 255, 0.95); }
-        /* Embedded xterm: TRANSPARENT, edge to edge, no box. */
+        .terminal-tab.split-child-tab { color: var(--ui-magenta); }
+        /* Embedded xterm: opaque configured background, edge to edge. */
         .terminal-panel .xterm {
             padding: 4px 8px;
-            background: transparent;
+            background: var(--term-bg);
             height: 100%;
         }
-        .xterm-viewport { background-color: transparent !important; }
 
         /* Status strip — hairline on top only */
         .statusbar {
@@ -692,10 +630,12 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
             padding: 6px 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-top: 1px solid rgba(var(--term-fg-rgb), 0.1);
             font-size: 11px;
-            color: rgba(255, 255, 255, 0.6);
+            color: var(--term-muted);
         }
         /* Warp-style assist input: ONE input surface spanning the window.
            While the agent owns the pane it is the agent-editor (instructions
@@ -708,7 +648,7 @@
             align-items: center;
             gap: 10px;
             padding: 9px 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-top: 1px solid rgba(var(--term-fg-rgb), 0.1);
         }
         /* The assist editor IS a full CodeMirror: multi-line, markdown syntax
            colors, native copy/paste/select-all. Transparent so the bar keeps
@@ -722,30 +662,30 @@
         #assistEditor .CodeMirror {
             height: auto;
             background: transparent !important;
-            color: #eaeaea;
+            color: var(--term-fg);
             font: 13px 'Menlo', monospace;
             line-height: 1.45;
         }
         #assistEditor .CodeMirror-gutters { background: transparent; border-right: none; }
         #assistEditor .CodeMirror-linenumber { display: none; }
-        #assistEditor .CodeMirror-cursor { border-left: 1.5px solid #b18cff; }
+        #assistEditor .CodeMirror-cursor { border-left: 1.5px solid var(--term-cursor); }
         #assistEditor .CodeMirror-selected {
-            background: rgba(177, 140, 255, 0.25) !important;
+            background: var(--term-selection-bg) !important;
         }
-        #assistEditor .CodeMirror-placeholder { color: rgba(255, 255, 255, 0.35); }
+        #assistEditor .CodeMirror-placeholder { color: var(--term-muted); }
         #assistSend {
             flex: none;
             border: none;
             padding: 4px 14px;
             font-size: 12px;
-            color: #b18cff;
+            color: var(--ui-magenta);
             cursor: pointer;
             background: transparent;
         }
         #assistSend:hover { text-decoration: underline; }
 
         .statusbar-left,
-        .statusbar-right { display: flex; gap: 16px; }
+        .statusbar-right { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
         .status-item { display: flex; align-items: center; gap: 6px; }
         /* Context-window meter: a tiny bar + the same numbers the loop logs
            (`ctx 12.3k/1M (1%)`). It is per ACTIVE session/tab. */
@@ -754,7 +694,7 @@
             width: 58px;
             height: 6px;
             border-radius: 3px;
-            background: rgba(255, 255, 255, 0.13);
+            background: rgba(var(--term-fg-rgb), 0.13);
             overflow: hidden;
             flex: none;
         }
@@ -763,24 +703,24 @@
             width: 0%;
             height: 100%;
             border-radius: inherit;
-            background: rgba(127, 209, 160, 0.9);
+            background: rgba(var(--ui-green-rgb), 0.9);
             transition: width 180ms ease, background 180ms ease;
         }
-        #contextUsageFill.warn { background: rgba(229, 184, 75, 0.95); }
-        #contextUsageFill.hot  { background: rgba(241, 76, 76, 0.95); }
+        #contextUsageFill.warn { background: rgba(var(--ui-yellow-rgb), 0.95); }
+        #contextUsageFill.hot  { background: rgba(var(--ui-red-rgb), 0.95); }
         #contextUsageText {
             font-family: Menlo, Consolas, monospace;
-            color: rgba(255, 255, 255, 0.6);
+            color: var(--term-muted);
             white-space: nowrap;
         }
         #monitorConfidence[hidden] { display: none; }
         .confidence-ring {
             --conf: 0;
-            --conf-color: rgba(140, 190, 255, 0.9);
+            --conf-color: rgba(var(--ui-blue-rgb), 0.9);
             width: 18px; height: 18px;
             border-radius: 50%;
             background: conic-gradient(var(--conf-color) calc(var(--conf) * 1%),
-                                       rgba(255, 255, 255, 0.12) 0);
+                                       rgba(var(--term-fg-rgb), 0.12) 0);
             position: relative;
             flex: none;
         }
@@ -789,11 +729,11 @@
             position: absolute;
             inset: 3px;
             border-radius: 50%;
-            background: #14151a;
+            background: var(--term-bg);
         }
         #confidenceLabel {
             font-family: Menlo, Consolas, monospace;
-            color: rgba(255, 255, 255, 0.6);
+            color: var(--term-muted);
             white-space: nowrap;
         }
         /* Model picker: a status-bar control that never looks like a form —
@@ -803,16 +743,43 @@
             -webkit-appearance: none;
             background: transparent;
             border: none;
-            color: rgba(255, 255, 255, 0.75);
+            color: var(--term-muted);
             font: 11px 'Menlo', Consolas, monospace;
             padding: 0 2px;
             max-width: 220px;
             cursor: pointer;
             outline: none;
         }
-        .status-select:hover { color: #ffffff; }
-        .status-select option { background: #14151a; color: #e8e8e8; }
-        .status-select.empty { color: rgba(255, 255, 255, 0.35); }
+        .status-select:hover { color: var(--term-fg); }
+        .status-select option { background: var(--term-bg); color: var(--term-fg); }
+        .status-select.empty { color: var(--term-muted); }
+        .model-controls { flex-wrap: wrap; gap: 10px; }
+        .model-controls label { display: flex; align-items: center; gap: 6px; }
+        .model-controls .status-select {
+            appearance: auto;
+            -webkit-appearance: menulist;
+            max-width: 180px;
+            padding: 2px 4px;
+            border: 1px solid rgba(var(--term-fg-rgb), 0.2);
+            border-radius: 4px;
+        }
+        .model-help summary { cursor: pointer; }
+        .model-controls :focus-visible { outline: 2px solid var(--ui-blue); outline-offset: 2px; }
+        .model-help-panel {
+            position: absolute;
+            right: 20px;
+            bottom: calc(100% + 12px);
+            width: min(340px, calc(100vw - 40px));
+            box-sizing: border-box;
+            padding: 12px 16px;
+            border: 1px solid rgba(var(--term-fg-rgb), 0.2);
+            border-radius: 6px;
+            background: var(--term-bg);
+            color: var(--term-fg);
+            font: 12px/1.5 system-ui, sans-serif;
+        }
+        .model-help-panel p { margin: 0 0 8px; }
+        .model-help-panel p:last-child { margin-bottom: 0; }
 
         /* Ownership indicator (Warp TuiInputTarget made visible): ai = the
            agent owns input and drives this pane; julia = you own it. THE one
@@ -823,25 +790,25 @@
             align-items: center;
             gap: 6px;
             padding: 2px 8px;
-            color: rgba(255, 255, 255, 0.85);
+            color: var(--term-fg);
             font-size: 11px;
             cursor: pointer;
             user-select: none;
         }
         #ownershipPill:hover {
-            color: #ffffff;
+            color: var(--term-fg);
         }
         #ownershipPill .pill-dot {
             width: 7px;
             height: 7px;
-            background: var(--accent, #4f9cf9);
+            background: var(--accent, var(--ui-blue));
         }
         #ownershipPill.owner-agent .pill-dot {
-            background: #b18cff;
-            box-shadow: 0 0 6px rgba(177, 140, 255, 0.8);
+            background: var(--ui-magenta);
+            box-shadow: 0 0 6px rgba(var(--ui-magenta-rgb), 0.8);
         }
         #ownershipPill .owner-user .pill-dot {
-            background: #35c28f;
+            background: var(--ui-green);
         }
 
         /* xterm injects its CSS at runtime, i.e. AFTER this sheet, and its viewport is
@@ -857,31 +824,29 @@
             background: transparent !important;
         }
         .xterm .xterm-viewport::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.16) !important;
+            background: rgba(var(--term-fg-rgb), 0.16) !important;
             border: 3px solid transparent !important;
             background-clip: content-box !important;
             border-radius: 6px !important;
         }
         .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.32) !important;
+            background: rgba(var(--term-fg-rgb), 0.32) !important;
             background-clip: content-box !important;
         }
         .xterm .xterm-viewport::-webkit-scrollbar-corner,
         .xterm .xterm-viewport::-webkit-scrollbar-button { background: transparent !important; }
 
-        /* Scrollbars: dark, thin, and transparent when idle. macOS "always show
-           scroll bars" paints a bright track on this dark UI, and xterm's
-           viewport is `scroll` even before anything overflows. */
+        /* Keep scrollbars quiet on either theme without changing viewport geometry. */
         ::-webkit-scrollbar { width: 12px; height: 12px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.16);
+            background: rgba(var(--term-fg-rgb), 0.16);
             border: 3px solid transparent;
             background-clip: content-box;
             border-radius: 6px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.32);
+            background: rgba(var(--term-fg-rgb), 0.32);
             background-clip: content-box;
         }
         ::-webkit-scrollbar-corner,
@@ -903,10 +868,10 @@
             position: absolute;
             top: 0; bottom: 0; left: 3px;
             width: 1px;
-            background: rgba(255, 255, 255, 0.10);
+            background: rgba(var(--term-fg-rgb), 0.10);
         }
         #chatResizer:hover::after, #chatResizer.dragging::after {
-            background: rgba(177, 140, 255, 0.75);
+            background: rgba(var(--ui-magenta-rgb), 0.75);
             width: 2px;
         }
         /* CHAT-ONLY: no terminal yet — the conversation owns the whole window. */
@@ -925,7 +890,7 @@
             min-width: 0;
             display: none;
             flex-direction: column;
-            background: #101014;
+            background: var(--term-bg);
         }
         .workspace.browser-focus #terminal-container,
         .workspace.browser-focus #chatResizer { display: none; }
@@ -935,23 +900,23 @@
             display: flex;
             gap: 6px;
             padding: 6px 8px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            border-bottom: 1px solid rgba(var(--term-fg-rgb), 0.12);
         }
         .browser-bar input {
             flex: 1;
             min-width: 0;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.14);
+            background: rgba(var(--term-fg-rgb), 0.06);
+            border: 1px solid rgba(var(--term-fg-rgb), 0.14);
             border-radius: 4px;
-            color: #eee;
+            color: var(--term-fg);
             font: 12px Menlo, Consolas, monospace;
             padding: 5px 8px;
         }
         .browser-bar button {
             background: transparent;
-            border: 1px solid rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(var(--term-fg-rgb), 0.16);
             border-radius: 4px;
-            color: rgba(255, 255, 255, 0.8);
+            color: var(--term-fg);
             font: 11px inherit;
             padding: 4px 9px;
             cursor: pointer;
@@ -959,12 +924,12 @@
         #browserFrame {
             flex: 1;
             border: 0;
-            background: #fff;
+            background: var(--term-bg);
         }
         .browser-native-note {
             flex: none;
             font: 10px Menlo, Consolas, monospace;
-            color: rgba(177, 140, 255, 0.7);
+            color: var(--ui-magenta);
             padding: 0 4px;
             white-space: nowrap;
         }
@@ -983,19 +948,12 @@
             min-height: 0;
             display: flex;
             flex-direction: column;
-            background: transparent;         /* the pane paints nothing either: the
-                                                photo is the surface for both, and
-                                                the hairline is what separates them */
-            border-left: 1px solid rgba(255, 255, 255, 0.12);
+            background: var(--term-bg);
+            border-left: 1px solid rgba(var(--term-fg-rgb), 0.12);
             overflow: hidden;
         }
 
-        /* Chat transcript: one bubble per message, role-tagged and aligned
-           like a normal messenger (you right, agent left). Same-role lines
-           arriving back-to-back grow the SAME bubble, so a streamed message
-           reads as one message instead of a flood. Colors come from the app's
-           own palette: purple = the agent (ownership pill / status line),
-           blue = you, amber = reasoning (dim), grey = system. */
+        /* Chat transcript: messages retain their role accents from the selected palette. */
         /* Bottom-of-chat container: the live phase line and input are ONE footer
            block. The transcript above is a separate flex row; this footer can
            never paint over its last message. */
@@ -1005,8 +963,8 @@
             flex-direction: column;
             position: relative;
             z-index: 2;
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
-            background: rgba(20, 21, 26, 0.55);
+            border-top: 1px solid rgba(var(--term-fg-rgb), 0.08);
+            background: var(--term-bg);
         }
         /* Live model/phase line: its own row inside the footer, directly above
            the input block. Replaced in place and cleared when the call returns. */
@@ -1021,11 +979,11 @@
             white-space: nowrap;
             text-overflow: ellipsis;
             font: 11px Menlo, Consolas, monospace;
-            color: rgba(255, 255, 255, 0.58);
+            color: var(--term-muted);
         }
         #chatProgress:not(:empty)::before {
             content: '\25cf ';
-            color: var(--term-bright-magenta);
+            color: var(--ui-bright-magenta);
         }
         #chatFooter #assistBar { border-top: none; }
         #chatStreamTabs {
@@ -1033,21 +991,21 @@
             display: flex;
             gap: 4px;
             padding: 4px 8px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            border-bottom: 1px solid rgba(var(--term-fg-rgb), 0.08);
         }
         .chat-stream-tab {
             background: transparent;
             border: none;
             border-bottom: 2px solid transparent;
-            color: rgba(255, 255, 255, 0.45);
+            color: var(--term-muted);
             font: inherit;
             font-size: 11px;
             padding: 3px 8px;
             cursor: pointer;
         }
         .chat-stream-tab.active {
-            color: #fff;
-            border-bottom-color: var(--term-bright-magenta);
+            color: var(--term-fg);
+            border-bottom-color: var(--ui-bright-magenta);
         }
         #agentChatLog {
             flex: 1 1 auto;
@@ -1061,7 +1019,7 @@
         }
         #agentChatLog .chat-empty {
             margin: auto;
-            color: rgba(255, 255, 255, 0.3);
+            color: var(--term-muted);
             font-size: 12px;
             text-align: center;
         }
@@ -1097,40 +1055,40 @@
            flush against the left edge (square left corners), translucent
            panel. The rail carries the identity color (purple = the agent);
            reasoning keeps its amber and its italics. */
-        #agentChatLog .role-text .chat-who { color: rgba(214, 112, 214, 0.8); }
+        #agentChatLog .role-text .chat-who { color: var(--ui-magenta); }
         #agentChatLog .role-text .chat-bubble {
             max-width: 100%;
-            background: rgba(214, 112, 214, 0.05);
+            background: rgba(var(--ui-magenta-rgb), 0.05);
             border: 1px solid transparent;
-            border-left: 2px solid rgba(214, 112, 214, 0.55);
+            border-left: 2px solid rgba(var(--ui-magenta-rgb), 0.55);
             border-radius: 0 3px 3px 0;   /* flush left: the rail IS the edge */
-            color: rgba(255, 255, 255, 0.88);
+            color: var(--term-fg);
         }
         /* You — the agent blocks mirrored: rail on the RIGHT edge (square corners,
            translucent panel), the "info" blue used by the feedback popups. */
         #agentChatLog .role-user { align-items: flex-end; }
-        #agentChatLog .role-user .chat-who { color: rgba(59, 142, 234, 0.85); }
+        #agentChatLog .role-user .chat-who { color: var(--ui-blue); }
         #agentChatLog .role-user .chat-bubble {
             max-width: 100%;
-            background: rgba(59, 142, 234, 0.06);
+            background: rgba(var(--ui-blue-rgb), 0.06);
             border: 1px solid transparent;
-            border-right: 2px solid rgba(59, 142, 234, 0.5);
+            border-right: 2px solid rgba(var(--ui-blue-rgb), 0.5);
             border-radius: 0;
-            color: rgba(255, 255, 255, 0.9);
+            color: var(--term-fg);
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
         /* Reasoning — dim amber, italic, rail on the left: read as asides. */
-        #agentChatLog .role-thinking .chat-who { color: rgba(229, 229, 16, 0.6); }
+        #agentChatLog .role-thinking .chat-who { color: var(--ui-yellow); }
         #agentChatLog .role-thinking .chat-bubble {
             /* Reasoning is a full-width band under its message, not a bubble
                that hugs a short thought: occupy the chat pane's width. */
             width: 100%;
             max-width: 100%;
-            background: rgba(229, 229, 16, 0.05);
+            background: rgba(var(--ui-yellow-rgb), 0.05);
             border: 1px solid transparent;
-            border-left: 2px solid rgba(229, 229, 16, 0.45);
+            border-left: 2px solid rgba(var(--ui-yellow-rgb), 0.45);
             border-radius: 0 3px 3px 0;   /* flush left: the rail IS the edge */
-            color: rgba(255, 255, 255, 0.62);
+            color: var(--term-muted);
             font-size: 11px;
             line-height: 1.6;
             font-style: italic;
@@ -1144,53 +1102,53 @@
         /* Monitor REASONING: a monitor trace, never the driver's thinking.
            Distinct role/label so the two are not confused in the rail. */
         #agentChatLog .role-monitorThinking .chat-who {
-            color: rgba(140, 190, 255, 0.7);
+            color: var(--ui-blue);
         }
         #agentChatLog .role-monitorThinking .chat-bubble {
             width: 100%;
             max-width: 100%;
-            background: rgba(120, 170, 255, 0.035);
+            background: rgba(var(--ui-blue-rgb), 0.035);
             border: 1px solid transparent;
-            border-left: 2px solid rgba(120, 170, 255, 0.35);
+            border-left: 2px solid rgba(var(--ui-blue-rgb), 0.35);
             border-radius: 0 3px 3px 0;
-            color: rgba(220, 232, 255, 0.62);
+            color: var(--term-muted);
             font-size: 11px;
             line-height: 1.6;
             font-style: italic;
             padding: 9px 12px;
         }
         /* Ambient MONITOR insight: distinct from the commissioned agent's voice. */
-        #agentChatLog .role-monitor .chat-who { color: rgba(140, 190, 255, 0.7); }
+        #agentChatLog .role-monitor .chat-who { color: var(--ui-blue); }
         #agentChatLog .role-monitor .chat-bubble {
             max-width: 100%;
-            background: rgba(120, 170, 255, 0.05);
+            background: rgba(var(--ui-blue-rgb), 0.05);
             border: 1px solid transparent;
-            border-left: 2px solid rgba(120, 170, 255, 0.4);
+            border-left: 2px solid rgba(var(--ui-blue-rgb), 0.4);
             border-radius: 0 3px 3px 0;
-            color: rgba(220, 232, 255, 0.75);
+            color: var(--term-muted);
             font-style: italic;
             font-size: 11px;
         }
-        #agentChatLog .role-warn .chat-who { color: rgba(255, 184, 76, 0.85); }
+        #agentChatLog .role-warn .chat-who { color: var(--ui-yellow); }
         #agentChatLog .role-warn .chat-bubble {
             max-width: 100%;
-            background: rgba(255, 184, 76, 0.06);
+            background: rgba(var(--ui-yellow-rgb), 0.06);
             border: 1px solid transparent;
-            border-left: 2px solid rgba(255, 184, 76, 0.55);
+            border-left: 2px solid rgba(var(--ui-yellow-rgb), 0.55);
             border-radius: 0 3px 3px 0;
-            color: rgba(255, 224, 180, 0.9);
+            color: var(--term-fg);
             font-family: Menlo, Consolas, monospace;
             font-size: 11px;
             white-space: pre-wrap;
         }
-        #agentChatLog .role-error .chat-who { color: rgba(255, 105, 105, 0.9); }
+        #agentChatLog .role-error .chat-who { color: var(--ui-red); }
         #agentChatLog .role-error .chat-bubble {
             max-width: 100%;
-            background: rgba(255, 80, 80, 0.07);
+            background: rgba(var(--ui-red-rgb), 0.07);
             border: 1px solid transparent;
-            border-left: 2px solid rgba(255, 90, 90, 0.7);
+            border-left: 2px solid rgba(var(--ui-red-rgb), 0.7);
             border-radius: 0 3px 3px 0;
-            color: rgba(255, 205, 205, 0.95);
+            color: var(--term-fg);
             font-family: Menlo, Consolas, monospace;
             font-size: 11px;
             white-space: pre-wrap;
@@ -1200,29 +1158,29 @@
         #agentChatLog .chat-bubble.md > :last-child { margin-bottom: 0; }
         #agentChatLog .chat-bubble.md h1,
         #agentChatLog .chat-bubble.md h2,
-        #agentChatLog .chat-bubble.md h3 { font-size: 12px; margin: 8px 0 4px; color: #fff; }
+        #agentChatLog .chat-bubble.md h3 { font-size: 12px; margin: 8px 0 4px; color: var(--term-fg); }
         #agentChatLog .chat-bubble.md ul,
         #agentChatLog .chat-bubble.md ol { margin: 5px 0 8px 20px; }
         #agentChatLog .chat-bubble.md li { margin: 3px 0; line-height: 1.55; }
         #agentChatLog .chat-bubble.md code {
             font-family: 'Menlo', Consolas, monospace; font-size: 11px;
-            background: rgba(255, 255, 255, 0.09); padding: 1px 4px; border-radius: 3px;
+            background: rgba(var(--term-fg-rgb), 0.09); padding: 1px 4px; border-radius: 3px;
         }
         #agentChatLog .chat-bubble.md pre {
             margin: 6px 0; padding: 6px 8px; overflow-x: auto;
-            background: rgba(0, 0, 0, 0.35);
-            border-left: 2px solid rgba(214, 112, 214, 0.5);
+            background: rgba(var(--term-fg-rgb), 0.04);
+            border-left: 2px solid rgba(var(--ui-magenta-rgb), 0.5);
         }
         #agentChatLog .chat-bubble.md pre code { background: none; padding: 0; }
-        #agentChatLog .chat-bubble.md a { color: var(--term-bright-blue); }
+        #agentChatLog .chat-bubble.md a { color: var(--ui-bright-blue); }
         #agentChatLog .chat-bubble.md blockquote {
-            margin: 6px 0; padding-left: 8px; color: rgba(255, 255, 255, 0.7);
-            border-left: 2px solid rgba(255, 255, 255, 0.2);
+            margin: 6px 0; padding-left: 8px; color: var(--term-muted);
+            border-left: 2px solid rgba(var(--term-fg-rgb), 0.2);
         }
         #agentChatLog .chat-bubble.md table { border-collapse: collapse; margin: 6px 0; font-size: 11px; }
         #agentChatLog .chat-bubble.md th,
-        #agentChatLog .chat-bubble.md td { border: 1px solid rgba(255, 255, 255, 0.15); padding: 2px 6px; }
-        #agentChatLog .chat-bubble.md hr { border: none; border-top: 1px solid rgba(255, 255, 255, 0.15); margin: 8px 0; }
+        #agentChatLog .chat-bubble.md td { border: 1px solid rgba(var(--term-fg-rgb), 0.15); padding: 2px 6px; }
+        #agentChatLog .chat-bubble.md hr { border: none; border-top: 1px solid rgba(var(--term-fg-rgb), 0.15); margin: 8px 0; }
         #agentChatLog .chat-bubble.md img { max-width: 100%; }
         /* Reasoning is italic; its code is not (and stays readable). */
         #agentChatLog .role-thinking .chat-bubble code,
@@ -1235,42 +1193,42 @@
         #agentChatLog .chat-tool {
             font-family: 'Menlo', Consolas, 'Courier New', monospace;
             font-size: 11px;
-            background: rgba(255, 255, 255, 0.03);
-            border-left: 2px solid rgba(255, 255, 255, 0.18);
+            background: rgba(var(--term-fg-rgb), 0.03);
+            border-left: 2px solid rgba(var(--term-fg-rgb), 0.18);
         }
         #agentChatLog .chat-tool > summary {
             display: flex; gap: 8px; align-items: baseline;
             padding: 4px 8px; cursor: pointer; user-select: none;
-            list-style: none; color: rgba(255, 255, 255, 0.75);
+            list-style: none; color: var(--term-muted);
         }
         #agentChatLog .chat-tool > summary::-webkit-details-marker { display: none; }
         #agentChatLog .chat-tool > summary::before {
             content: '\25B8';                 /* ▸ folded */
-            color: rgba(255, 255, 255, 0.4);
+            color: var(--term-muted);
             font-size: 10px;
         }
         #agentChatLog .chat-tool[open] > summary::before { content: '\25BE'; }   /* ▾ open */
-        #agentChatLog .tool-name { color: var(--term-bright-magenta); }
+        #agentChatLog .tool-name { color: var(--ui-bright-magenta); }
         #agentChatLog .tool-detail {
             flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         #agentChatLog .tool-state { flex: none; opacity: 0.8; }
-        #agentChatLog .tool-state.running { color: var(--term-bright-magenta); }
-        #agentChatLog .tool-state.ok { color: var(--term-bright-green); }
-        #agentChatLog .tool-state.err { color: var(--term-bright-red); }
+        #agentChatLog .tool-state.running { color: var(--ui-bright-magenta); }
+        #agentChatLog .tool-state.ok { color: var(--ui-bright-green); }
+        #agentChatLog .tool-state.err { color: var(--ui-bright-red); }
         #agentChatLog .tool-body { padding: 0 8px 6px 18px; }
         #agentChatLog .tool-body pre {
             margin: 0; white-space: pre-wrap; word-break: break-word;
-            color: rgba(255, 255, 255, 0.8);
+            color: var(--term-fg);
         }
 
         /* System notices — quiet, dashed, no claim to be speech. */
-        #agentChatLog .role-system .chat-who { color: rgba(212, 212, 212, 0.35); }
+        #agentChatLog .role-system .chat-who { color: var(--term-muted); }
         #agentChatLog .role-system .chat-bubble {
             max-width: 100%;
             background: transparent;
-            border: 1px dashed rgba(212, 212, 212, 0.2);
-            color: rgba(212, 212, 212, 0.6);
+            border: 1px dashed rgba(var(--term-fg-rgb), 0.2);
+            color: var(--term-muted);
             font-size: 11px;
         }
 
@@ -1290,45 +1248,45 @@
             display: flex;
             align-items: center;
             padding: 6px 14px;
-            background: rgba(255, 255, 255, 0.04);
-            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(var(--term-fg-rgb), 0.04);
+            border-left: 1px solid rgba(var(--term-fg-rgb), 0.1);
             cursor: pointer;
             font-size: 11px;
-            color: rgba(255, 255, 255, 0.45);
+            color: var(--term-muted);
             user-select: none;
         }
-        .scratch-rail .scratch-header:hover { color: rgba(255, 255, 255, 0.8); }
+        .scratch-rail .scratch-header:hover { color: var(--term-fg); }
         .scratch-rail .scratch-handle { margin-right: 8px; font-size: 12px; transition: transform 0.2s ease; }
         .scratch-rail.expanded .scratch-handle { transform: rotate(90deg); }
         .scratch-rail .scratch-content {
             flex: 1;
             display: flex;
             flex-direction: column;
-            background: rgba(12, 13, 16, 0.96);
-            border-left: 1px solid rgba(255, 255, 255, 0.12);
+            background: var(--term-bg);
+            border-left: 1px solid rgba(var(--term-fg-rgb), 0.12);
         }
         #scratchEditor .CodeMirror {
             height: auto !important;
             min-height: 140px;
             background: transparent !important;
-            color: #e0e0e0;
+            color: var(--term-fg);
             font: 13px 'Menlo', Consolas, 'Courier New', monospace;
             line-height: 1.4;
         }
         #scratchEditor .CodeMirror-gutters { display: none; }
-        #scratchEditor .CodeMirror-cursor { border-left: 1.5px solid #b18cff; }
-        #scratchEditor .CodeMirror-selected { background: rgba(177, 140, 255, 0.2) !important; }
+        #scratchEditor .CodeMirror-cursor { border-left: 1.5px solid var(--term-cursor); }
+        #scratchEditor .CodeMirror-selected { background: var(--term-selection-bg) !important; }
         .scratch-rail .scratch-send {
             flex: none;
             padding: 6px 14px;
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            border-top: 1px solid rgba(var(--term-fg-rgb), 0.08);
             text-align: right;
         }
         .scratch-rail .scratch-send button {
             border: none;
             padding: 4px 12px;
             font-size: 12px;
-            color: #b18cff;
+            color: var(--ui-magenta);
             cursor: pointer;
             background: transparent;
         }
@@ -1345,8 +1303,8 @@
             transition: width 0.28s ease;
             display: flex;
             flex-direction: column;
-            background: rgba(12, 13, 16, 0.96);
-            border-left: 1px solid rgba(255, 255, 255, 0.12);
+            background: var(--term-bg);
+            border-left: 1px solid rgba(var(--term-fg-rgb), 0.12);
             box-shadow: -4px 0 20px rgba(0, 0, 0, 0.4);
         }
         #syntaxPanel.expanded { width: 360px; }
@@ -1357,36 +1315,92 @@
             justify-content: space-between;
             padding: 6px 14px;
             font-size: 11px;
-            color: rgba(255, 255, 255, 0.45);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--term-muted);
+            border-bottom: 1px solid rgba(var(--term-fg-rgb), 0.08);
         }
         #syntaxPanel .syntax-handle { cursor: pointer; font-size: 12px; }
         #syntaxPanel .syntax-close {
             cursor: pointer;
-            color: rgba(255, 255, 255, 0.4);
+            color: var(--term-muted);
             font-size: 13px;
             padding: 2px 8px;
         }
-        #syntaxPanel .syntax-close:hover { color: #ef5350; }
+        #syntaxPanel .syntax-close:hover { color: var(--ui-red); }
         #syntaxEditor .CodeMirror {
             height: auto !important;
             background: transparent !important;
-            color: #e0e0e0;
+            color: var(--term-fg);
             font: 13px 'Menlo', Consolas, 'Courier New', monospace;
             line-height: 1.4;
         }
         #syntaxEditor .CodeMirror-gutters { display: none; }
+
+        /* CodeMirror's default stylesheet has its own fixed syntax palette. */
+        .CodeMirror { background: var(--term-bg); color: var(--term-fg); }
+        .CodeMirror .CodeMirror-cursor { border-left-color: var(--term-cursor); }
+        .CodeMirror .CodeMirror-selected { background: var(--term-selection-bg); }
+        .CodeMirror .CodeMirror-selectedtext { color: var(--term-selection-fg) !important; }
+        .CodeMirror .CodeMirror-matchingbracket { color: var(--ui-green) !important; }
+        .CodeMirror .CodeMirror-nonmatchingbracket { color: var(--ui-red) !important; }
+        .CodeMirror .CodeMirror-activeline-background { background: rgba(var(--term-fg-rgb), 0.04); }
+        .CodeMirror span.cm-keyword,
+        .CodeMirror span.cm-operator,
+        .CodeMirror span.cm-qualifier,
+        .CodeMirror span.cm-header { color: var(--ui-magenta); }
+        .CodeMirror span.cm-atom,
+        .CodeMirror span.cm-number,
+        .CodeMirror span.cm-attribute { color: var(--ui-yellow); }
+        .CodeMirror span.cm-def,
+        .CodeMirror span.cm-variable-2,
+        .CodeMirror span.cm-link { color: var(--ui-blue); }
+        .CodeMirror span.cm-variable,
+        .CodeMirror span.cm-property,
+        .CodeMirror span.cm-bracket { color: var(--term-fg); }
+        .CodeMirror span.cm-variable-3,
+        .CodeMirror span.cm-type,
+        .CodeMirror span.cm-builtin,
+        .CodeMirror span.cm-tag { color: var(--ui-cyan); }
+        .CodeMirror span.cm-string,
+        .CodeMirror span.cm-string-2,
+        .CodeMirror span.cm-positive { color: var(--ui-green); }
+        .CodeMirror span.cm-comment,
+        .CodeMirror span.cm-meta,
+        .CodeMirror span.cm-quote,
+        .CodeMirror span.cm-hr { color: var(--term-muted); }
+        .CodeMirror span.cm-error,
+        .CodeMirror span.cm-invalidchar,
+        .CodeMirror span.cm-negative { color: var(--ui-red); }
+        ::selection { background: var(--term-selection-bg); color: var(--term-selection-fg); }
+        .theme-controls { position: relative; flex: none; }
+        #themeReload {
+            background: transparent;
+            color: var(--term-muted);
+            border: 1px solid rgba(var(--term-fg-rgb), 0.2);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font: inherit;
+            cursor: pointer;
+        }
+        #themeReload:hover { color: var(--term-fg); }
+        .theme-controls :disabled { cursor: wait; opacity: 0.65; }
+        .theme-controls :focus-visible { outline: 2px solid var(--ui-blue); outline-offset: 2px; }
+        #themeError {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            right: 0;
+            width: min(360px, 80vw);
+            padding: 8px;
+            background: var(--term-bg);
+            color: var(--ui-red);
+            border: 1px solid var(--ui-red);
+            white-space: normal;
+            overflow-wrap: anywhere;
+            z-index: 100;
+        }
     </style>
 </head>
 <body>
-    <!-- Grain noise source -->
-    <svg style="position: fixed; width: 0; height: 0;">
-        <filter id="noise">
-            <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/>
-            <feColorMatrix type="saturate" values="0"/>
-        </filter>
-    </svg>
-    <!-- Agent feedback popups (Warp ambient-agent style glass stack) -->
+    <!-- Agent feedback popups -->
     <div id="agentPopups"></div>
 
     <!-- Session-type chooser: Ctrl+Shift+T (child) / Ctrl+Shift+R (root). -->
@@ -1458,8 +1472,6 @@
         </div>
     </div>
 
-    <div id="appBackground"></div>
-    <div id="grain"></div>
 
     <!-- Workspace: VERTICAL tab rail + terminal pane -->
     <!-- Boots CHAT-ONLY: nothing to prompt about until a terminal is asked for
@@ -1508,7 +1520,7 @@
                  row so the waiting text can never overlap the last message. -->
             <div id="chatFooter">
                 <div id="chatProgress" title=""></div>
-                <div id="assistBar" style="flex:none; padding:8px 12px; display:flex; gap:8px; align-items:center; border-top:1px solid rgba(255,255,255,0.08);">
+                <div id="assistBar" style="flex:none; padding:8px 12px; display:flex; gap:8px; align-items:center; border-top:1px solid rgba(var(--term-fg-rgb), 0.08);">
                     <div id="assistEditor" style="flex:1; min-width:0;"></div>
                     <button id="assistSend">Send</button>
                 </div>
@@ -1540,16 +1552,35 @@
             </div>
         </div>
         <div class="statusbar-right">
-            <div class="status-item">
-                <select id="modelSelect" class="status-select"
-                        title="Model for this tab's AGENT (drives the terminal). Applies to the next run.">
-                </select>
-                <select id="monitorSelect" class="status-select"
-                        title="Model for this tab's AMBIENT MONITOR (watches and comments).">
-                </select>
+            <div class="status-item theme-controls" aria-label="Theme settings">
+                <label for="themeSelect">Theme</label>
+                <select id="themeSelect" class="status-select" aria-describedby="themeError"></select>
+                <button type="button" id="themeReload" title="Reload the theme configuration">Reload</button>
+                <span id="themeError" role="status" aria-live="polite" hidden></span>
+            </div>
+            <div class="status-item model-controls" role="group" aria-label="Models for the active session">
+                <label for="modelSelect">Agent
+                    <select id="modelSelect" class="status-select" aria-describedby="agentModelHelp modelScopeHelp"
+                            title="Answers requests and operates the terminal. Changes apply to the next request or task.">
+                    </select>
+                </label>
+                <label for="monitorSelect">Monitor
+                    <select id="monitorSelect" class="status-select" aria-describedby="monitorModelHelp modelScopeHelp"
+                            title="Watches progress and provides background feedback. Changes apply to the next check.">
+                    </select>
+                </label>
+                <details class="model-help">
+                    <summary>Model help</summary>
+                    <div class="model-help-panel">
+                        <p id="agentModelHelp"><strong>Agent</strong> answers your requests and runs terminal tasks. A change applies to the next request or task, not one already running.</p>
+                        <p id="monitorModelHelp"><strong>Monitor</strong> watches progress and provides background feedback. A change applies to the next background check.</p>
+                        <p id="modelScopeHelp">These choices are independent and affect only the active session. Other sessions keep their own models.</p>
+                        <p>Use <code>/login</code> to connect a model subscription.</p>
+                    </div>
+                </details>
             </div>
             <button id="splitBtn" title="Split the pane: Alt+D vertical (side by side), Alt+Shift+D horizontal (stacked)"
-                    style="background:transparent;border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.75);font-size:11px;padding:2px 8px;cursor:pointer;border-radius:4px;">split</button>
+                    style="background:transparent;border:1px solid rgba(var(--term-fg-rgb), 0.18);color:var(--term-muted);font-size:11px;padding:2px 8px;cursor:pointer;border-radius:4px;">split</button>
             <div id="ownershipPill" class="owner-user" style="display:none"
                  title="Who owns this pane's input. Click to switch.">
                 <span class="pill-dot"></span>
@@ -1679,6 +1710,7 @@
             // Page-level event diagnostics (mirrored to Julia stdout).
             const dbg = m => { try { window.flootyDebug && window.flootyDebug(m); } catch (e) {} };
             document.addEventListener('keydown', e => {
+                if (e.target && e.target.closest && e.target.closest('.subscription-dialog')) return;
                 const ae = document.activeElement;
                 dbg('keydown key=' + e.key + ' active=' +
                     (ae ? (ae.className || ae.tagName) : 'none'));
@@ -1738,34 +1770,7 @@
         });
 
         function xtermTheme() {
-            return {
-                // TRANSPARENT on purpose: the terminal pane sits over the app's
-                // wallpaper (the .terminal-panel CSS keeps every xterm layer
-                // transparent), and the DOM renderer left its rows transparent.
-                // The WebGL renderer instead paints the theme background as a
-                // full-screen rectangle — an opaque value here would turn the
-                // pane into a solid slab and hide the wallpaper.
-                background: 'rgba(30, 30, 30, 0)',
-                foreground: '#d4d4d4',
-                cursor: '#ffffff',
-                selectionBackground: '#264f78',
-                black: '#000000',
-                red: '#cd3131',
-                green: '#0dbc79',
-                yellow: '#e5e510',
-                blue: '#2472c8',
-                magenta: '#bc3fbc',
-                cyan: '#11a8cd',
-                white: '#e5e5e5',
-                brightBlack: '#666666',
-                brightRed: '#f14c4c',
-                brightGreen: '#23d18b',
-                brightYellow: '#f5f543',
-                brightBlue: '#3b8eea',
-                brightMagenta: '#d670d6',
-                brightCyan: '#29b8db',
-                brightWhite: '#ffffff'
-            };
+            return window.FlootyThemeManager.current;
         }
 
         // ---- GPU-accelerated rendering (WebGL2) --------------------------------
@@ -3312,6 +3317,7 @@
             renderContextUsage();
             renderMonitorConfidence();
             renderActiveProgress();
+            if (typeof refreshAgentModels === 'function') refreshAgentModels();
             renderTabRail();
         }
 
@@ -3364,6 +3370,7 @@
             updateLayoutMode();
             renderContextUsage();
             renderActiveProgress();
+            if (typeof refreshAgentModels === 'function') refreshAgentModels();
             renderTabRail();
         }
 
@@ -3866,7 +3873,7 @@
         try {
             scratchCm = CodeMirror(document.getElementById('scratchEditor'), {
                 mode: 'julia',
-                theme: 'dracula',
+                theme: 'flooty',
                 placeholder: 'Scratch space — write Julia code here, then send to terminal',
                 lineNumbers: true,
                 lineWrapping: true,
@@ -3923,7 +3930,7 @@
             try {
                 syntaxCm = CodeMirror(document.getElementById('syntaxEditor'), {
                     mode: 'julia',
-                    theme: 'dracula',
+                    theme: 'flooty',
                     lineNumbers: true,
                     readOnly: true,
                     lineWrapping: true,
@@ -4005,7 +4012,7 @@
             // Inside the assist bar = talking to the agent, not taking over
             // (works for BOTH the old <input> and the new CodeMirror surface,
             // whose keystrokes originate on CM's hidden textarea deep inside).
-            if (e.target && e.target.closest && e.target.closest('#assistBar')) return;
+            if (e.target && e.target.closest && e.target.closest('#assistBar, .subscription-dialog')) return;
             const now = Date.now();
             if (now - lastUserTypingPing < 400) return;
             lastUserTypingPing = now;
@@ -4060,7 +4067,7 @@
             textarea.rows = 2;
             textarea.style.cssText =
                 'width:100%; min-height:28px; max-height:9.5em; box-sizing:border-box; ' +
-                'background:transparent; color:#eaeaea; border:none; outline:none; ' +
+                'background:transparent; color:var(--term-fg); border:none; outline:none; ' +
                 'font:13px "Menlo",Consolas,monospace; line-height:1.45; ' +
                 'resize:none; padding:0; margin:0;';
             assistCm = {
@@ -4084,10 +4091,19 @@
             try { window.flootyDebug && window.flootyDebug(
                 'assistEditor init FAILED: ' + e); } catch (_e) {}
         }
+        function activeModelSessionId() {
+            return activeBrowserId || activeChatId || focusedSessionId() || CHAT_SESSION_ID || '';
+        }
+        const slashCommands = assistCm && window.createFlootySlashCommands({
+            editor: assistCm, callJulia,
+            context: () => ({ session_id: activeModelSessionId() }),
+            onModelChanged: () => { agentModelGen++; refreshAgentModels(); }
+        });
         function submitAssist() {
             if (!assistCm) return;
             const text = assistCm.getValue();
             if (!text.trim()) return;
+            if (slashCommands && slashCommands.submit(text)) return;
             // CHAT ONLY: no terminal is opened implicitly. The conversation is
             // with the agent model; a terminal (and its monitoring agent) comes
             // from Ctrl+Shift+T, which also takes this thread over.
@@ -4134,7 +4150,9 @@
             const sid = (info && (info.juliaId || info.sessionId || info.id))
                         || CHAT_SESSION_ID;
             if (!sid) return;
-            const text = assistCm ? String(assistCm.getValue() || '').slice(-300) : '';
+            const draft = assistCm ? String(assistCm.getValue() || '') : '';
+            if (draft.trimStart().startsWith('/')) return;
+            const text = draft.slice(-300);
             if (kind !== 'attach' && kind !== 'submit' && text.trim().length < 3) return;
             callJulia('flootyChatInteraction', JSON.stringify({
                 session_id: sid, kind: kind, text: text,
@@ -4164,6 +4182,7 @@
         document.getElementById('assistSend').addEventListener('click', submitAssist);
         if (assistCm) {
             assistCm.on('keydown', (_cm, e) => {
+                if (slashCommands && slashCommands.keydown(e)) return;
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     submitAssist();
@@ -4181,6 +4200,11 @@
         // whenever it changes: the document's selection first, else the active
         // terminal's (xterm keeps its own).
         function liveSelectionText() {
+            const privateInput = document.activeElement;
+            if (privateInput && privateInput.closest && privateInput.closest('.subscription-dialog')) {
+                return typeof privateInput.selectionStart === 'number'
+                    ? privateInput.value.slice(privateInput.selectionStart, privateInput.selectionEnd) : '';
+            }
             const sel = window.getSelection();
             const docText = sel ? sel.toString() : '';
             if (docText) return docText;
@@ -4218,7 +4242,7 @@
             const saved = [];
             for (let i = 0; i < sel.rangeCount; i++) saved.push(sel.getRangeAt(i).cloneRange());
             const focused = document.activeElement;
-            const textarea = (focused && focused.tagName === 'TEXTAREA') ? focused : null;
+            const textarea = (focused && ['TEXTAREA', 'INPUT'].includes(focused.tagName)) ? focused : null;
             const taStart = textarea ? textarea.selectionStart : 0;
             const taEnd = textarea ? textarea.selectionEnd : 0;
             const holder = document.createElement('textarea');
@@ -4227,7 +4251,8 @@
             holder.style.position = 'fixed';
             holder.style.top = '-1000px';
             holder.style.opacity = '0';
-            document.body.appendChild(holder);
+            const mount = focused && focused.closest && focused.closest('.subscription-dialog');
+            (mount || document.body).appendChild(holder);
             holder.select();
             let ok = false;
             try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
@@ -4252,6 +4277,12 @@
         window.flootyPaste = function (text) {
             if (!text) return false;
             const active = document.activeElement;
+            if (active && active.closest && active.closest('.subscription-dialog')) {
+                if (typeof active.setRangeText !== 'function' || active.readOnly || active.disabled) return false;
+                active.setRangeText(text, active.selectionStart, active.selectionEnd, 'end');
+                active.dispatchEvent(new Event('input', { bubbles: true }));
+                return true;
+            }
             let ok = false;
             let where = 'none';
             if (active && active.closest && active.closest('#assistBar')) {
@@ -4300,6 +4331,8 @@
             if (selectionPing) clearTimeout(selectionPing);
             selectionPing = setTimeout(() => {
                 selectionPing = null;
+                const focused = document.activeElement;
+                if (focused && focused.closest && focused.closest('.subscription-dialog')) return;
                 callJulia('flootySelectionChanged',
                           JSON.stringify({ text: liveSelectionText() }))
                     .catch(() => {});
@@ -4358,7 +4391,7 @@
         async function refreshAgentModels() {
             const gen = agentModelGen;
             const active = terminals[activeTerminalId];
-            const tid = active ? (active.juliaId || '') : '';
+            const tid = activeModelSessionId();
             try {
                 const state = await callJulia('flootyModels',
                                               JSON.stringify({ terminal_id: tid }));
@@ -4388,16 +4421,18 @@
             modelSelect.addEventListener('change', async () => {
                 const want = modelSelect.value;
                 agentModelGen++;                     // our choice wins over in-flight reads
+                modelSelect.disabled = monitorSelect.disabled = true;
                 let state = null;
                 try {
-                    const activeNow = terminals[activeTerminalId];
                     state = await callJulia('flootySetModel',
                                             JSON.stringify({ model: want,
-                                                terminal_id: activeNow ? (activeNow.juliaId || '') : '' }));
+                            terminal_id: activeModelSessionId() }));
                 } catch (e) { state = null; }
                 agentModels = (state && state.success) ?
-                    { current: state.current || want, available: state.available || [] } :
-                    { current: want, available: agentModels.available };
+                    { current: state.current || want,
+                      monitor: state.monitor || agentModels.monitor,
+                      available: state.available || [] } :
+                    { current: want, monitor: agentModels.monitor, available: agentModels.available };
                 renderModelSelect();
                 try { window.flootyDebug && window.flootyDebug(
                     'modelSelect -> ' + agentModels.current); } catch (e) {}
@@ -4405,12 +4440,13 @@
             if (monitorSelect) {
                 monitorSelect.addEventListener('change', async () => {
                     const want = monitorSelect.value;
-                    const activeNow = terminals[activeTerminalId];
+                    agentModelGen++;
+                    modelSelect.disabled = monitorSelect.disabled = true;
                     let state = null;
                     try {
                         state = await callJulia('flootySetMonitorModel',
                                                 JSON.stringify({ model: want,
-                            terminal_id: activeNow ? (activeNow.juliaId || '') : '' }));
+                            terminal_id: activeModelSessionId() }));
                     } catch (e) { state = null; }
                     if (state && state.success) {
                         agentModels = { current: state.current || agentModels.current,
@@ -4477,8 +4513,8 @@
                 const b = document.createElement("button");
                 b.textContent = label;
                 b.style.cssText = "padding:4px 10px;border-radius:4px;" +
-                    "border:1px solid rgba(255,255,255,0.25);" +
-                    "background:rgba(30,30,30,0.9);color:#ddd;" +
+                    "border:1px solid rgba(var(--term-fg-rgb), 0.25);" +
+                    "background:var(--term-bg);color:var(--term-fg);" +
                     "font:12px Menlo,monospace;cursor:pointer;";
                 b.onclick = fn;
                 return b;
@@ -4724,17 +4760,17 @@
             const labels = { terminal: 'Terminal', chat: 'User',
                              trajectory: 'Trajectory', prompt: 'PS2',
                              preferences: 'Preferences' };
-            const colors = { terminal: 'rgba(140,190,255,0.95)',
-                             chat: 'rgba(127,209,160,0.95)',
-                             trajectory: 'rgba(177,140,255,0.95)',
-                             prompt: 'rgba(229,184,75,0.95)',
-                             preferences: 'rgba(229,229,16,0.9)' };
+            const colors = { terminal: 'rgba(var(--ui-blue-rgb), 0.95)',
+                             chat: 'rgba(var(--ui-green-rgb), 0.95)',
+                             trajectory: 'rgba(var(--ui-magenta-rgb), 0.95)',
+                             prompt: 'rgba(var(--ui-yellow-rgb), 0.95)',
+                             preferences: 'rgba(var(--ui-yellow-rgb), 0.9)' };
             box.hidden = false;
             const ring = document.getElementById('confidenceRing');
             if (ring) {
                 ring.style.setProperty('--conf', value.toFixed(1));
                 ring.style.setProperty('--conf-color',
-                    colors[source] || 'rgba(140,190,255,0.9)');
+                    colors[source] || 'rgba(var(--ui-blue-rgb), 0.9)');
             }
             const label = document.getElementById('confidenceLabel');
             if (label) label.textContent = (labels[source] || source) + ' ' +
@@ -4856,7 +4892,7 @@
                 const has = activeSplitPool().length > 0;
                 btn.textContent = has ? 'close split' : 'split';
                 btn.style.borderColor = has ?
-                    'rgba(177,140,255,0.8)' : 'rgba(255,255,255,0.18)';
+                    'rgba(var(--ui-magenta-rgb), 0.8)' : 'rgba(var(--term-fg-rgb), 0.18)';
             };
             btn.addEventListener('click', () => {
                 activeSplitPool().length ? closeChildTerminal() : splitTerminal();

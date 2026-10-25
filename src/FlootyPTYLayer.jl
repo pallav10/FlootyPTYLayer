@@ -46,6 +46,7 @@ export launchTerminalUI, runTerminalUI, stopTerminalUI,
     closeAllBrowserWindows!, browserWindowInfo, browserWindowOpen,
     addAgentModelHooks!, agentModelState, setSplitSession!,
     gpuRendererReport, openTerminalWindow, runTerminalWindow
+export ThemeManager
 
 """
     activeTerminalUiWebview() -> Union{Webviews.Webview, Nothing}
@@ -59,6 +60,8 @@ include("flootyPty.jl")
 include("controlState.jl")
 include("session.jl")
 include("shadowTerminal.jl")
+include("themeManager.jl")
+include("slashCommands.jl")
 include("flootyWebUi.jl")
 include("browserWindow.jl")
 

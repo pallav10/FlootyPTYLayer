@@ -15,10 +15,6 @@
 #                                       inside a render callback, because the
 #                                       drawing buffer is not preserved across
 #                                       frames)
-#   * modalAlpha == 0                 — the canvas stays TRANSPARENT, so the
-#                                       app's wallpaper still shows through
-#                                       the terminal pane (as it does with the
-#                                       DOM renderer)
 #
 # A DOM fallback would still RENDER, so this probe exists to catch a silent
 # regression to the slow path (no addon, no WebGL2, context lost, blank canvas).
@@ -27,7 +23,7 @@
 #   julia --startup-file=no --project=. test/gpuRendererProbe.jl [timeoutS]
 import FlootyPTYLayer
 using FlootyPTYLayer
-using JSON
+using JSON3
 using Logging
 using Webviews
 
@@ -97,7 +93,6 @@ const PIXEL_PROBE_JS = """
       gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, buf);
       // Histogram of the RGBA quadruples: the modal colour is the background
       // the renderer painted, every other colour is content (glyphs, cursor).
-      // The ALPHA matters: an opaque canvas would hide the app's wallpaper.
       var hist = {};
       var bright = 0;
       for (var i = 0; i < buf.length; i += 4) {
@@ -193,7 +188,7 @@ watchdog = @async begin
             println("PAGE: ", line)
             if startswith(line, "[ui-debug] GPUPIX {")
                 parsed = try
-                    JSON.parse(replace(line, "[ui-debug] GPUPIX " => ""))
+                    JSON3.read(replace(line, "[ui-debug] GPUPIX " => ""))
                 catch
                     nothing
                 end
@@ -231,7 +226,7 @@ if report === nothing
     println("GPU_REPORT: (none — the page never reported)")
     exit(1)
 end
-println("GPU_REPORT: ", JSON.json(report))
+println("GPU_REPORT: ", JSON3.write(report))
 
 webgl2 = get(report, "webgl2", false) === true
 entries = get(report, "terminals", Any[])
@@ -246,7 +241,7 @@ for e in entries
             " canvas=", get(e, "canvas", false), " reason=", get(e, "reason", ""))
 end
 for s in samples
-    println("pixel sample: ", JSON.json(s))
+    println("pixel sample: ", JSON3.write(s))
 end
 
 # A painted frame is a mostly-uniform background with a small number of
@@ -256,11 +251,7 @@ end
 painted = any(s -> get(s, "modalCount", 0) > 0.5 * get(s, "total", 1) &&
                       get(s, "bright", 0) > 0, samples)
 println("WebGL framebuffer holds painted glyphs: ", painted)
-# The terminal pane is transparent over the app's wallpaper (the theme
-# background is rgba(...,0)); an opaque canvas would hide the wallpaper.
-transparent = any(s -> get(s, "modalAlpha", 255) == 0, samples)
-println("WebGL canvas stays transparent over the wallpaper: ", transparent)
 
-ok = webgl2 && !isempty(canvasTerminals) && painted && transparent
+ok = webgl2 && !isempty(canvasTerminals) && painted
 println(ok ? "GPU_RENDERER_PROBE_OK" : "GPU_RENDERER_PROBE_FAILED")
 exit(ok ? 0 : 1)
