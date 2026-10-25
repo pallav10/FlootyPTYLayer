@@ -1,0 +1,23 @@
+# Flooty's solid light terminal theme.
+background = #f7f8fc
+foreground = #252936
+cursor-color = #252936
+cursor-text = #f7f8fc
+selection-background = #cbd8f3
+selection-foreground = #15171e
+palette = 0=#252936
+palette = 1=#b63246
+palette = 2=#34743b
+palette = 3=#886517
+palette = 4=#345fba
+palette = 5=#8252a6
+palette = 6=#287a7c
+palette = 7=#dce0e8
+palette = 8=#697184
+palette = 9=#cd4658
+palette = 10=#43894b
+palette = 11=#a27b20
+palette = 12=#4a76d1
+palette = 13=#9865bd
+palette = 14=#348e90
+palette = 15=#ffffff

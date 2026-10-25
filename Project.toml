@@ -7,21 +7,19 @@ authors = ["Arhik <arhik23@gmail.com>"]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 FlootyREPLBridge = "7f3d9a2e-8c41-4b57-9d6f-a1e2f3b4c5d6"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
-JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 ShadowTerm = "cb0c1bae-a641-4582-85ee-c9086e096c1b"
-WebIO = "0f1e0344-ec1d-5b48-a673-e5cf874b6c29"
 Webviews = "b7e775b7-052a-4229-9250-fe08ae90f9c6"
 
 [sources]
 FlootyREPLBridge = {path = "../FlootyREPLBridge"}
 ShadowTerm = {path = "../ShadowTerm"}
-WebIO = {path = "/Users/arhik/.julia/dev/WebIO"}
 
 [compat]
 HTTP = "1.11.0"
-JSON = "1"
+JSON3 = "1.14.3"
 Webviews = "1.2.0"
 julia = "1.10"

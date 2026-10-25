@@ -23,7 +23,7 @@
 #   julia --startup-file=no --project=. test/terminalPerfProbe.jl
 import FlootyPTYLayer
 using FlootyPTYLayer
-using JSON
+using JSON3
 using Logging
 using Webviews
 
@@ -213,7 +213,7 @@ watchdog = @async begin
                 l = seen[i]
                 startswith(l, "[ui-debug] PERF {") || continue
                 v = try
-                    JSON.parse(replace(l, "[ui-debug] PERF " => ""))
+                    JSON3.read(replace(l, "[ui-debug] PERF " => ""))
                 catch
                     nothing
                 end

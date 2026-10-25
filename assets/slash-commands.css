@@ -1,0 +1,44 @@
+.slash-command-menu {
+    position: absolute; bottom: calc(100% + 8px); left: 12px; right: 12px;
+    z-index: 50; max-height: 240px; overflow-y: auto;
+    color: var(--term-fg); background: var(--term-bg);
+    border: 1px solid rgba(var(--term-fg-rgb), 0.25); border-radius: 8px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.3); padding: 5px;
+}
+.slash-command-menu[hidden], .slash-command-feedback[hidden] { display: none; }
+.slash-command-menu button {
+    display: flex; gap: 16px; align-items: baseline; width: 100%; text-align: left;
+    padding: 10px; border: none; border-radius: 4px; font: inherit; cursor: pointer;
+    color: inherit; background: transparent;
+}
+.slash-command-menu button[aria-selected="true"] { background: rgba(var(--term-fg-rgb), 0.12); }
+.slash-command-menu span, .slash-command-menu p { color: var(--term-muted); font-size: 12px; }
+.slash-command-feedback { color: var(--term-fg); font-size: 12px; padding-top: 6px; }
+.subscription-dialog {
+    width: min(560px, calc(100vw - 48px)); max-height: calc(100vh - 64px);
+    overflow-y: auto; box-sizing: border-box; padding: 24px; border-radius: 12px;
+    font: 13px/1.5 -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--term-fg); background: var(--term-bg);
+    border: 1px solid rgba(var(--term-fg-rgb), 0.25);
+}
+.subscription-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+.subscription-dialog h2 { font-size: 18px; margin: 0 0 16px; }
+.subscription-dialog h3 { font-size: 15px; }
+.subscription-dialog p { overflow-wrap: anywhere; }
+.subscription-dialog button, .subscription-dialog input, .subscription-dialog select {
+    box-sizing: border-box; color: inherit; background: var(--term-bg); font: inherit;
+    border: 1px solid rgba(var(--term-fg-rgb), 0.3); border-radius: 5px; padding: 8px 10px;
+}
+.subscription-dialog button { margin: 4px 8px 8px 0; cursor: pointer; }
+.subscription-dialog button:hover { background: rgba(var(--term-fg-rgb), 0.1); }
+.subscription-dialog button:focus-visible, .subscription-dialog input:focus-visible,
+.subscription-dialog select:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.subscription-dialog button:disabled { opacity: 0.5; cursor: default; }
+.subscription-dialog input, .subscription-dialog select { display: block; width: 100%; margin: 6px 0 12px; }
+.subscription-dialog label { display: block; margin-top: 12px; }
+.subscription-provider { display: block; width: 100%; text-align: left; }
+.subscription-note { color: var(--term-muted); }
+.subscription-host-form {
+    margin: 12px 0; padding-top: 4px;
+    border-top: 1px solid rgba(var(--term-fg-rgb), 0.2);
+}
